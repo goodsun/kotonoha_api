@@ -2,13 +2,15 @@
 """
 KOTONOHA テストシェル
 RunPodエンドポイントと対話するインタラクティブシェル
+依存ライブラリなし（標準ライブラリのみ）
 """
 
 import os
 import sys
 import json
 import time
-import requests
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 
@@ -21,6 +23,17 @@ def load_env(path=".env"):
                 if line and not line.startswith("#") and "=" in line:
                     key, _, value = line.partition("=")
                     os.environ.setdefault(key.strip(), value.strip())
+
+
+def api_request(url, headers, data=None, timeout=300):
+    """Make HTTP request using urllib."""
+    if data is not None:
+        payload = json.dumps(data).encode("utf-8")
+        req = urllib.request.Request(url, data=payload, headers=headers)
+    else:
+        req = urllib.request.Request(url, headers=headers)
+    resp = urllib.request.urlopen(req, timeout=timeout)
+    return json.loads(resp.read().decode("utf-8"))
 
 
 def main():
@@ -58,13 +71,10 @@ def main():
     print("  /system   システムプロンプトを設定")
     print("  /clear    会話履歴をクリア")
     print("  /history  会話履歴を表示")
-    print("  /sync     同期モード (runsync) に切替")
-    print("  /async    非同期モード (run+poll) に切替")
     print()
 
     system_prompt = ""
     messages = []
-    use_sync = True  # デフォルトはrunsync
 
     while True:
         try:
@@ -83,8 +93,8 @@ def main():
 
         if user_input == "/status":
             try:
-                resp = requests.get(f"{base_url}/health", headers=headers, timeout=10)
-                print(json.dumps(resp.json(), indent=2, ensure_ascii=False))
+                data = api_request(f"{base_url}/health", headers, timeout=10)
+                print(json.dumps(data, indent=2, ensure_ascii=False))
             except Exception as e:
                 print(f"取得失敗: {e}")
             print()
@@ -95,7 +105,7 @@ def main():
                 system_prompt = input("システムプロンプト> ").strip()
             except (EOFError, KeyboardInterrupt):
                 pass
-            print(f"システムプロンプトを設定しました")
+            print("システムプロンプトを設定しました")
             print()
             continue
 
@@ -116,18 +126,6 @@ def main():
             print()
             continue
 
-        if user_input == "/sync":
-            use_sync = True
-            print("同期モード (runsync) に切り替えました")
-            print()
-            continue
-
-        if user_input == "/async":
-            use_sync = False
-            print("非同期モード (run+poll) に切り替えました")
-            print()
-            continue
-
         # メッセージ追加
         messages.append({"role": "user", "content": user_input})
 
@@ -144,92 +142,71 @@ def main():
         }
 
         try:
-            if use_sync:
-                # 同期モード
-                print()
-                sys.stdout.write("KOTONOHA> ")
-                sys.stdout.flush()
+            print()
+            # runsync で同期的に結果を取得
+            data = api_request(f"{base_url}/runsync", headers, payload, timeout=300)
 
-                resp = requests.post(
-                    f"{base_url}/runsync",
-                    headers=headers,
-                    json=payload,
-                    timeout=300,
-                )
-                data = resp.json()
+            status = data.get("status", "")
+            if status == "COMPLETED":
                 output = data.get("output", {})
-
                 if "error" in output:
-                    print(f"エラー: {output['error']}")
+                    print(f"KOTONOHA> エラー: {output['error']}")
                 else:
                     response_text = output.get("response", "(空の応答)")
-                    print(response_text)
+                    print(f"KOTONOHA> {response_text}")
                     usage = output.get("usage", {})
                     if usage:
                         print(f"\n[tokens: prompt={usage.get('prompt_tokens', 0)}, completion={usage.get('completion_tokens', 0)}]")
                     messages.append({"role": "assistant", "content": response_text})
 
-            else:
-                # 非同期モード
-                resp = requests.post(
-                    f"{base_url}/run",
-                    headers=headers,
-                    json=payload,
-                    timeout=30,
-                )
-                job_data = resp.json()
-                job_id = job_data.get("id", "")
-
+            elif status == "IN_PROGRESS":
+                # runsync がタイムアウトした場合、ポーリングにフォールバック
+                job_id = data.get("id", "")
                 if not job_id:
-                    print(f"ジョブ送信失敗: {job_data}")
-                    print()
-                    continue
-
-                print()
-                max_wait = 300
-                waited = 0
-
-                while waited < max_wait:
-                    status_resp = requests.get(
-                        f"{base_url}/status/{job_id}",
-                        headers=headers,
-                        timeout=10,
-                    )
-                    status_data = status_resp.json()
-                    status = status_data.get("status", "")
-
-                    if status == "COMPLETED":
-                        output = status_data.get("output", {})
-                        if "error" in output:
-                            print(f"KOTONOHA> エラー: {output['error']}")
-                        else:
-                            response_text = output.get("response", "(空の応答)")
-                            print(f"KOTONOHA> {response_text}")
-                            usage = output.get("usage", {})
-                            if usage:
-                                print(f"\n[tokens: prompt={usage.get('prompt_tokens', 0)}, completion={usage.get('completion_tokens', 0)}]")
-                            messages.append({"role": "assistant", "content": response_text})
-                        break
-
-                    elif status == "FAILED":
-                        print(f"KOTONOHA> ジョブ失敗: {status_data.get('error', '不明なエラー')}")
-                        break
-
-                    elif status in ("IN_QUEUE", "IN_PROGRESS"):
-                        sys.stdout.write(f"\r待機中... ({waited}s)")
-                        sys.stdout.flush()
-                        time.sleep(2)
-                        waited += 2
-
-                    else:
-                        print(f"不明なステータス: {status}")
-                        print(json.dumps(status_data, indent=2, ensure_ascii=False))
-                        break
+                    print("KOTONOHA> ジョブID取得失敗")
                 else:
-                    print(f"\nタイムアウト ({max_wait}s)")
+                    max_wait = 300
+                    waited = 0
+                    while waited < max_wait:
+                        status_data = api_request(
+                            f"{base_url}/status/{job_id}", headers, timeout=10
+                        )
+                        s = status_data.get("status", "")
+                        if s == "COMPLETED":
+                            output = status_data.get("output", {})
+                            if "error" in output:
+                                print(f"KOTONOHA> エラー: {output['error']}")
+                            else:
+                                response_text = output.get("response", "(空の応答)")
+                                print(f"KOTONOHA> {response_text}")
+                                usage = output.get("usage", {})
+                                if usage:
+                                    print(f"\n[tokens: prompt={usage.get('prompt_tokens', 0)}, completion={usage.get('completion_tokens', 0)}]")
+                                messages.append({"role": "assistant", "content": response_text})
+                            break
+                        elif s == "FAILED":
+                            print(f"KOTONOHA> ジョブ失敗: {status_data.get('error', '不明')}")
+                            break
+                        else:
+                            sys.stdout.write(f"\r待機中... ({waited}s)")
+                            sys.stdout.flush()
+                            time.sleep(2)
+                            waited += 2
+                    else:
+                        print(f"\nタイムアウト ({max_wait}s)")
 
-        except requests.exceptions.Timeout:
-            print("タイムアウト")
+            elif status == "FAILED":
+                print(f"KOTONOHA> ジョブ失敗: {data.get('error', '不明なエラー')}")
+
+            else:
+                print(f"KOTONOHA> 予期しないステータス: {status}")
+                print(json.dumps(data, indent=2, ensure_ascii=False))
+
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            print(f"HTTPエラー {e.code}: {body}")
+        except urllib.error.URLError as e:
+            print(f"接続エラー: {e.reason}")
         except Exception as e:
             print(f"エラー: {e}")
 

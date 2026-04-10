@@ -1,8 +1,12 @@
 FROM /models/llm-jp-4-8b-thinking-Q4_K_M.gguf
 
+TEMPLATE """{{ if .System }}<|start|>system<|message|>{{ .System }}<|end|>{{ end }}{{ range .Messages }}{{ if eq .Role "user" }}<|start|>user<|message|>{{ .Content }}<|end|>{{ else if eq .Role "assistant" }}<|start|>assistant<|channel|>final<|message|>{{ .Content }}<|end|>{{ end }}{{ end }}<|start|>assistant<|channel|>final<|message|>"""
+
 PARAMETER temperature 0.7
 PARAMETER top_p 0.9
 PARAMETER num_predict 2048
 PARAMETER num_ctx 65536
+PARAMETER stop "<|end|>"
+PARAMETER stop "<|return|>"
 
 SYSTEM """あなたは日本語に特化した高性能なAIアシスタントです。丁寧で正確な日本語で応答してください。"""
