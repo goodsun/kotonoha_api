@@ -16,29 +16,14 @@ RUN mkdir -p /var/run/sshd && \
 # Install Ollama
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
-# Install handler dependencies
-RUN pip install runpod requests
-
-# Download GGUF model from HuggingFace (~5.3GB)
-RUN mkdir -p /models && \
-    curl -L -o /models/llm-jp-4-8b-thinking-Q4_K_M.gguf \
-    "https://huggingface.co/mmnga-o/llm-jp-4-8b-thinking-gguf/resolve/main/llm-jp-4-8b-thinking-Q4_K_M.gguf"
-
 # Copy files
-COPY handler.py /handler.py
 COPY entrypoint.sh /entrypoint.sh
 COPY Modelfile /Modelfile
 RUN chmod +x /entrypoint.sh
 
-# Register model with Ollama at build time
-RUN ollama serve & \
-    until curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1; do sleep 1; done && \
-    ollama create kotonoha -f /Modelfile && \
-    kill %1 || true
-
 ENV MODEL_NAME=kotonoha
-ENV OLLAMA_HOST=127.0.0.1:11434
+ENV OLLAMA_HOST=0.0.0.0:11434
 
-EXPOSE 22
+EXPOSE 11434 22
 
 ENTRYPOINT ["/entrypoint.sh"]

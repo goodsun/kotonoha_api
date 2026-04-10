@@ -1,6 +1,12 @@
 # KOTONOHA API
 
-RunPod Serverless で LLM-jp-4 を Ollama 経由で提供する API。
+RunPod Pods でユーザー専有の LLM-jp-4 環境をオンデマンド提供する。
+
+## 概要
+
+- ユーザーが起動 → 専用Pod作成 → LLM-jp-4でチャット + SSH接続
+- 終了 → Pod terminate → 全データ消滅（使い捨て）
+- モデルは Network Volume に配置（Dockerイメージに含めない）
 
 ## ブランチ構成
 
@@ -9,63 +15,51 @@ RunPod Serverless で LLM-jp-4 を Ollama 経由で提供する API。
 | `llm-jp-4-8b` | LLM-jp-4 8B thinking Q4_K_M | ~5.3GB |
 | `llm-jp-4-32b-a3b` | LLM-jp-4 32B-A3B thinking Q4_K_M | ~21GB |
 
-## デプロイ
+## セットアップ
 
-1. RunPod でカスタムテンプレートを作成
-2. Docker イメージをビルド・プッシュ
-3. サーバレスエンドポイントを作成
+### 1. Network Volume
+
+RunPod で Network Volume を作成し、モデルファイルを配置:
+
+```
+/runpod-volume/models/llm-jp-4-8b-thinking-Q4_K_M.gguf
+```
+
+### 2. Docker イメージ
 
 ```bash
 docker build -t kotonoha-api:8b .
+# RunPod のレジストリにプッシュ
 ```
 
-## テスト
+### 3. テスト
 
 ```bash
 cp .env.example .env
-# .env に RUNPOD_API_KEY と RUNPOD_ENDPOINT_ID を設定
-
-chmod +x test_chat.sh
-./test_chat.sh
+# .env を編集
+python3 test_chat.py
 ```
 
 ## API
 
-### リクエスト
+起動中の Pod の Ollama API に直接アクセス:
 
-```json
-{
-  "input": {
-    "messages": [
-      {"role": "user", "content": "こんにちは"}
-    ],
-    "temperature": 0.7,
-    "max_tokens": 2048
-  }
-}
+```bash
+curl http://{pod_ip}:11434/api/chat -d '{
+  "model": "kotonoha",
+  "messages": [{"role": "user", "content": "こんにちは"}],
+  "stream": false
+}'
 ```
 
-または簡易モード:
+## SSH
 
-```json
-{
-  "input": {
-    "prompt": "日本の首都は？",
-    "system": "簡潔に答えてください"
-  }
-}
+Pod 作成時に PUBLIC_KEY 環境変数で公開鍵を注入:
+
+```bash
+ssh root@{pod_ip} -p {port}
 ```
 
-### レスポンス
+## 詳細仕様
 
-```json
-{
-  "response": "こんにちは！何かお手伝いできることはありますか？",
-  "model": "mmnga-o/llm-jp-4-8b-thinking-gguf:Q4_K_M",
-  "usage": {
-    "prompt_tokens": 12,
-    "completion_tokens": 18,
-    "total_tokens": 30
-  }
-}
-```
+docs/ ディレクトリを参照。

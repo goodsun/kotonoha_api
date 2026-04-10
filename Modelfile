@@ -1,4 +1,4 @@
-FROM /models/llm-jp-4-8b-thinking-Q4_K_M.gguf
+FROM /runpod-volume/models/llm-jp-4-8b-thinking-Q4_K_M.gguf
 
 TEMPLATE """{{ if .System }}<|start|>system<|message|>{{ .System }}<|end|>{{ end }}{{ range .Messages }}{{ if eq .Role "user" }}<|start|>user<|message|>{{ .Content }}<|end|>{{ else if eq .Role "assistant" }}<|start|>assistant<|channel|>final<|message|>{{ .Content }}<|end|>{{ end }}{{ end }}<|start|>assistant<|channel|>final<|message|>"""
 

@@ -1,20 +1,22 @@
 #!/bin/bash
 
 MODEL_NAME="${MODEL_NAME:-kotonoha}"
+VOLUME_PATH="${VOLUME_PATH:-/runpod-volume}"
 
-echo "=== KOTONOHA API starting ==="
+echo "=== KOTONOHA starting ==="
 echo "Model: ${MODEL_NAME}"
+echo "Volume: ${VOLUME_PATH}"
 echo "Date: $(date)"
 
 # --- SSH setup ---
 if [ -n "${PUBLIC_KEY:-}" ]; then
-    echo "Setting up SSH with provided public key..."
+    echo "Setting up SSH..."
     mkdir -p /root/.ssh
     echo "$PUBLIC_KEY" > /root/.ssh/authorized_keys
     chmod 700 /root/.ssh
     chmod 600 /root/.ssh/authorized_keys
     /usr/sbin/sshd
-    echo "SSH server started on port 22"
+    echo "SSH ready on port 22"
 else
     echo "No PUBLIC_KEY provided, SSH disabled"
 fi
@@ -40,17 +42,26 @@ until curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1; do
 done
 echo "Ollama is ready (waited ${WAITED}s)"
 
-# Verify model is registered
+# --- Model registration ---
 echo "Checking model availability..."
-ollama list
 if ! ollama list 2>/dev/null | grep -q "${MODEL_NAME}"; then
-    echo "Model not found, creating from Modelfile..."
-    ollama create "${MODEL_NAME}" -f /Modelfile || {
-        echo "ERROR: Failed to create model"
+    if [ -f /Modelfile ]; then
+        echo "Registering model from Modelfile..."
+        ollama create "${MODEL_NAME}" -f /Modelfile || {
+            echo "ERROR: Failed to create model"
+            exit 1
+        }
+    else
+        echo "ERROR: No Modelfile found"
         exit 1
-    }
+    fi
 fi
 echo "Model ready: ${MODEL_NAME}"
+ollama list
 
-echo "Starting RunPod handler..."
-exec python /handler.py
+echo "=== KOTONOHA ready ==="
+echo "Ollama API: http://0.0.0.0:11434"
+echo "SSH: port 22"
+
+# Keep container alive
+wait $OLLAMA_PID
