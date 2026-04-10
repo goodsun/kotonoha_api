@@ -41,15 +41,39 @@ def wait_for_ollama():
     raise RuntimeError("Ollama failed to start within 180 seconds")
 
 
+def handle_set_pubkey(input_data):
+    """Register SSH public key on running Pod."""
+    pubkey = input_data.get("pubkey", "").strip()
+    if not pubkey:
+        return {"error": "pubkey is required"}
+    if not pubkey.startswith(("ssh-rsa", "ssh-ed25519", "ecdsa-sha2", "ssh-dss")):
+        return {"error": "Invalid public key format"}
+
+    os.makedirs("/root/.ssh", exist_ok=True)
+    with open("/root/.ssh/authorized_keys", "w") as f:
+        f.write(pubkey + "\n")
+    os.chmod("/root/.ssh/authorized_keys", 0o600)
+
+    # Ensure sshd is running
+    os.system("pgrep sshd > /dev/null 2>&1 || /usr/sbin/sshd")
+
+    logger.info("SSH public key set")
+    return {"status": "ok", "message": "Public key set, SSH ready"}
+
+
 def handler(job):
-    """RunPod serverless handler for chat completion."""
+    """RunPod serverless handler."""
     job_id = job.get("id", "unknown")
     input_data = job.get("input", {})
 
     logger.info(f"Job started: {job_id}")
 
     try:
-        # Support both single-message and multi-turn chat
+        # SSH public key registration
+        if "pubkey" in input_data and "prompt" not in input_data and "messages" not in input_data:
+            return handle_set_pubkey(input_data)
+
+        # Chat completion
         messages = input_data.get("messages")
         prompt = input_data.get("prompt")
 

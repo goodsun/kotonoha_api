@@ -71,6 +71,7 @@ def main():
     print("  /system   システムプロンプトを設定")
     print("  /clear    会話履歴をクリア")
     print("  /history  会話履歴を表示")
+    print("  /pubkey   SSH公開鍵を登録")
     print()
 
     system_prompt = ""
@@ -123,6 +124,40 @@ def main():
 
         if user_input == "/history":
             print(json.dumps(messages, indent=2, ensure_ascii=False))
+            print()
+            continue
+
+        if user_input == "/pubkey":
+            try:
+                pubkey = input("公開鍵> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                continue
+            if not pubkey:
+                print("公開鍵が空です")
+                print()
+                continue
+            try:
+                data = api_request(f"{base_url}/runsync", headers, {"input": {"pubkey": pubkey}}, timeout=30)
+                output = data.get("output", {})
+                print(json.dumps(output, indent=2, ensure_ascii=False))
+            except Exception as e:
+                print(f"エラー: {e}")
+            print()
+            continue
+
+        if user_input.startswith("/pubkey "):
+            pubkey = user_input[8:].strip()
+            if not pubkey:
+                print("公開鍵が空です")
+                print()
+                continue
+            try:
+                data = api_request(f"{base_url}/runsync", headers, {"input": {"pubkey": pubkey}}, timeout=30)
+                output = data.get("output", {})
+                print(json.dumps(output, indent=2, ensure_ascii=False))
+            except Exception as e:
+                print(f"エラー: {e}")
             print()
             continue
 
