@@ -16,7 +16,7 @@ COPY handler.py /handler.py
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-ENV MODEL_NAME=mmnga-o/llm-jp-4-8b-thinking-gguf:Q4_K_M
+ENV MODEL_NAME=ki-krugle-jp/llm-jp-4-8b-thinking:q4_k_m
 ENV OLLAMA_HOST=127.0.0.1:11434
 
 ENTRYPOINT ["/entrypoint.sh"]
