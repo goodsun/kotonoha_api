@@ -1,5 +1,9 @@
 FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends git curl && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install Ollama
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
