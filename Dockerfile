@@ -24,7 +24,7 @@ RUN chmod +x /entrypoint.sh
 
 # Register model with Ollama at build time
 RUN ollama serve & \
-    sleep 5 && \
+    until curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1; do sleep 1; done && \
     ollama create kotonoha -f /Modelfile && \
     kill %1 || true
 
