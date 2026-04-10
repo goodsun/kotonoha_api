@@ -71,9 +71,6 @@ def main():
     print("  /system   システムプロンプトを設定")
     print("  /clear    会話履歴をクリア")
     print("  /history  会話履歴を表示")
-    print("  /ssh set <公開鍵>   SSH公開鍵を登録")
-    print("  /ssh list           登録済み公開鍵を表示")
-    print("  /ssh remove <公開鍵> SSH公開鍵を削除")
     print()
 
     system_prompt = ""
@@ -126,30 +123,6 @@ def main():
 
         if user_input == "/history":
             print(json.dumps(messages, indent=2, ensure_ascii=False))
-            print()
-            continue
-
-        if user_input.startswith("/ssh "):
-            parts = user_input.split(None, 2)
-            ssh_cmd = parts[1] if len(parts) > 1 else ""
-
-            if ssh_cmd == "set" and len(parts) > 2:
-                payload = {"input": {"ssh_action": "set_pubkey", "pubkey": parts[2]}}
-            elif ssh_cmd == "list":
-                payload = {"input": {"ssh_action": "list_pubkeys"}}
-            elif ssh_cmd == "remove" and len(parts) > 2:
-                payload = {"input": {"ssh_action": "remove_pubkey", "pubkey": parts[2]}}
-            else:
-                print("使い方: /ssh set <公開鍵> | /ssh list | /ssh remove <公開鍵>")
-                print()
-                continue
-
-            try:
-                data = api_request(f"{base_url}/runsync", headers, payload, timeout=30)
-                output = data.get("output", {})
-                print(json.dumps(output, indent=2, ensure_ascii=False))
-            except Exception as e:
-                print(f"エラー: {e}")
             print()
             continue
 

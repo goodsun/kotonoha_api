@@ -41,83 +41,15 @@ def wait_for_ollama():
     raise RuntimeError("Ollama failed to start within 180 seconds")
 
 
-AUTHORIZED_KEYS_PATH = "/root/.ssh/authorized_keys"
-
-
-def handle_ssh(input_data):
-    """Handle SSH public key management."""
-    action = input_data.get("ssh_action", "")
-
-    if action == "set_pubkey":
-        pubkey = input_data.get("pubkey", "").strip()
-        if not pubkey:
-            return {"error": "pubkey is required"}
-        if not pubkey.startswith(("ssh-rsa", "ssh-ed25519", "ecdsa-sha2", "ssh-dss")):
-            return {"error": "Invalid public key format"}
-
-        os.makedirs("/root/.ssh", exist_ok=True)
-
-        # Append if not already present
-        existing = ""
-        if os.path.exists(AUTHORIZED_KEYS_PATH):
-            with open(AUTHORIZED_KEYS_PATH, "r") as f:
-                existing = f.read()
-
-        if pubkey in existing:
-            return {"status": "already_registered", "message": "Public key is already registered"}
-
-        with open(AUTHORIZED_KEYS_PATH, "a") as f:
-            f.write(pubkey + "\n")
-        os.chmod(AUTHORIZED_KEYS_PATH, 0o600)
-
-        logger.info("SSH public key added")
-        return {"status": "ok", "message": "Public key registered"}
-
-    elif action == "list_pubkeys":
-        if not os.path.exists(AUTHORIZED_KEYS_PATH):
-            return {"keys": []}
-        with open(AUTHORIZED_KEYS_PATH, "r") as f:
-            keys = [line.strip() for line in f if line.strip()]
-        return {"keys": keys}
-
-    elif action == "remove_pubkey":
-        pubkey = input_data.get("pubkey", "").strip()
-        if not pubkey:
-            return {"error": "pubkey is required"}
-        if not os.path.exists(AUTHORIZED_KEYS_PATH):
-            return {"error": "No keys registered"}
-
-        with open(AUTHORIZED_KEYS_PATH, "r") as f:
-            keys = [line.strip() for line in f if line.strip()]
-
-        new_keys = [k for k in keys if k != pubkey]
-        if len(new_keys) == len(keys):
-            return {"error": "Key not found"}
-
-        with open(AUTHORIZED_KEYS_PATH, "w") as f:
-            f.write("\n".join(new_keys) + "\n" if new_keys else "")
-        os.chmod(AUTHORIZED_KEYS_PATH, 0o600)
-
-        logger.info("SSH public key removed")
-        return {"status": "ok", "message": "Public key removed"}
-
-    else:
-        return {"error": f"Unknown ssh_action: {action}. Use: set_pubkey, list_pubkeys, remove_pubkey"}
-
-
 def handler(job):
-    """RunPod serverless handler."""
+    """RunPod serverless handler for chat completion."""
     job_id = job.get("id", "unknown")
     input_data = job.get("input", {})
 
     logger.info(f"Job started: {job_id}")
 
     try:
-        # SSH management
-        if "ssh_action" in input_data:
-            return handle_ssh(input_data)
-
-        # Chat completion
+        # Support both single-message and multi-turn chat
         messages = input_data.get("messages")
         prompt = input_data.get("prompt")
 
