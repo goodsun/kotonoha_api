@@ -1,72 +1,50 @@
 # API仕様
 
-## エンドポイント
+## 二層構造
 
-RunPod Serverless APIを使用する。
+KOTONOHAのAPIは2つのレイヤーで構成される。
 
-- `POST /v2/{endpoint_id}/runsync` — 同期実行（レスポンスを待つ）
-- `POST /v2/{endpoint_id}/run` — 非同期実行（ジョブIDを返す）
-- `GET /v2/{endpoint_id}/status/{job_id}` — ジョブステータス確認
-- `GET /v2/{endpoint_id}/health` — エンドポイント状態確認
+### 1. Pod管理API（RunPod Pods API）
+
+クライアント/PHPがPodの起動・停止を制御する。
+
+- Pod作成: `POST https://api.runpod.io/v2/pods`
+- Pod停止: `POST https://api.runpod.io/v2/pods/{pod_id}/stop`
+- Pod削除: `DELETE https://api.runpod.io/v2/pods/{pod_id}`（terminate）
+- Pod情報取得: `GET https://api.runpod.io/v2/pods/{pod_id}`
 
 認証: `Authorization: Bearer {RUNPOD_API_KEY}`
 
-## アクション
+Pod作成時のパラメータ:
+- テンプレートID
+- GPU種別
+- Network Volume ID
+- 環境変数（`PUBLIC_KEY`等）
 
-handler.pyは`input`の内容でアクションを判別する。
+### 2. Ollama API（Pod直接アクセス）
 
-### チャット（messages形式）
+起動中のPodのOllamaに直接HTTPリクエストを送る。
+
+ベースURL: `http://{pod_ip}:11434`
+
+#### チャット
+
+```
+POST /api/chat
+```
 
 ```json
 {
-  "input": {
-    "messages": [
-      {"role": "system", "content": "あなたは日本語AIです"},
-      {"role": "user", "content": "こんにちは"}
-    ],
+  "model": "kotonoha",
+  "messages": [
+    {"role": "system", "content": "あなたは日本語AIです"},
+    {"role": "user", "content": "こんにちは"}
+  ],
+  "stream": false,
+  "options": {
     "temperature": 0.7,
     "top_p": 0.9,
-    "max_tokens": 2048,
-    "stream": true
-  }
-}
-```
-
-### チャット（prompt形式）
-
-```json
-{
-  "input": {
-    "prompt": "日本の首都は？",
-    "system": "簡潔に答えてください"
-  }
-}
-```
-
-### レスポンス
-
-```json
-{
-  "output": {
-    "response": "こんにちは！何かお手伝いできることはありますか？",
-    "model": "kotonoha",
-    "usage": {
-      "prompt_tokens": 12,
-      "completion_tokens": 18,
-      "total_tokens": 30
-    }
-  }
-}
-```
-
-### SSH公開鍵設定
-
-`input`に`pubkey`のみを含め、`prompt`/`messages`を含めない。
-
-```json
-{
-  "input": {
-    "pubkey": "ssh-ed25519 AAAA... user@host"
+    "num_predict": 2048
   }
 }
 ```
@@ -75,35 +53,55 @@ handler.pyは`input`の内容でアクションを判別する。
 
 ```json
 {
-  "output": {
-    "status": "ok",
-    "message": "Public key set, SSH ready"
-  }
+  "model": "kotonoha",
+  "message": {
+    "role": "assistant",
+    "content": "こんにちは！何かお手伝いできることはありますか？"
+  },
+  "done": true,
+  "eval_count": 18,
+  "prompt_eval_count": 12
 }
 ```
 
-注意: pubkey設定は同じワーカーに対して行う必要がある。ワーカーIDでルーティングすること。
+#### ストリーミング
 
-## パラメータ
+`"stream": true` にすると、Server-Sent Events形式でトークンが逐次返る。ブラウザJSから直接SSE接続可能。
+
+#### モデル一覧
+
+```
+GET /api/tags
+```
+
+#### モデル情報
+
+```
+GET /api/show
+```
+
+## handler.pyの位置付け
+
+Pods方式ではhandler.py（RunPod Serverlessハンドラ）は不要。Ollamaが直接APIを公開する。
+
+handler.pyはServerless版のPoC用として残すが、本番運用ではOllama APIに直接アクセスする。
+
+## パラメータ一覧（Ollama API）
 
 | パラメータ | 型 | デフォルト | 範囲 | 説明 |
 |---|---|---|---|---|
-| messages | array | — | — | チャットメッセージ配列 |
-| prompt | string | — | — | 簡易プロンプト（messages未指定時） |
-| system | string | "" | — | システムプロンプト（prompt形式時） |
 | model | string | "kotonoha" | — | Ollamaモデル名 |
-| temperature | float | 0.7 | 0.0-2.0 | 生成のランダム性 |
-| top_p | float | 0.9 | 0.0-1.0 | トークン選択の確率閾値 |
-| max_tokens | int | 2048 | 1-65536 | 最大生成トークン数 |
-| stream | bool | false | — | Ollama側ストリーミング（RunPodレスポンスは一括） |
-| pubkey | string | — | — | SSH公開鍵（チャットパラメータと排他） |
+| messages | array | — | — | チャットメッセージ配列 |
+| stream | bool | true | — | ストリーミング有無 |
+| options.temperature | float | 0.7 | 0.0-2.0 | 生成のランダム性 |
+| options.top_p | float | 0.9 | 0.0-1.0 | トークン選択の確率閾値 |
+| options.num_predict | int | 2048 | -1〜65536 | 最大生成トークン数 |
+| options.num_ctx | int | 65536 | — | コンテキストウィンドウサイズ |
 
-## エラーレスポンス
+## SSH
 
-```json
-{
-  "output": {
-    "error": "エラーメッセージ"
-  }
-}
+Pod作成時に環境変数`PUBLIC_KEY`にユーザーの公開鍵を設定する。APIでの公開鍵設定は不要（Pod作成時に完結）。
+
+```bash
+ssh root@{pod_ip} -p 22 -i ~/.ssh/id_ed25519
 ```

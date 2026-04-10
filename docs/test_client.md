@@ -2,43 +2,35 @@
 
 ## 概要
 
-RunPodエンドポイントと対話するインタラクティブシェル。標準ライブラリのみで動作し、外部依存なし。
+KOTONOHAのテスト用クライアント。標準ライブラリのみで動作。
 
-## 使い方
+## 現状
+
+現在のtest_chat.pyはRunPod Serverless向けに実装されている。Pods方式への移行に伴い、以下の変更が必要。
+
+## TODO: Pods方式への対応
+
+1. RunPod Pods APIでPodを起動（`create_pod`）
+2. Pod起動完了を待つ（ヘルスチェック）
+3. PodのIPアドレスを取得
+4. Ollama API（`http://{pod_ip}:11434/api/chat`）に直接リクエスト
+5. 終了時にPodをterminate
+
+## 使い方（予定）
 
 ```bash
 cp .env.example .env
-# .env に RUNPOD_API_KEY と RUNPOD_ENDPOINT_ID を設定
+# .env に RUNPOD_API_KEY, RUNPOD_TEMPLATE_ID, RUNPOD_VOLUME_ID を設定
 python3 test_chat.py
 ```
 
-または環境変数で直接指定:
-
-```bash
-RUNPOD_API_KEY=xxx RUNPOD_ENDPOINT_ID=yyy python3 test_chat.py
-```
-
-## コマンド
+## コマンド（予定）
 
 | コマンド | 説明 |
 |---|---|
-| /quit, /exit | 終了 |
-| /status | エンドポイントの状態確認 |
-| /system | システムプロンプトを設定（対話式） |
-| /system {text} | システムプロンプトを設定（インライン） |
+| /quit, /exit | Pod停止して終了 |
+| /status | Pod状態確認 |
+| /system | システムプロンプトを設定 |
 | /clear | 会話履歴をクリア |
 | /history | 会話履歴を表示 |
-| /pubkey | SSH公開鍵を登録（対話式） |
-| /pubkey {key} | SSH公開鍵を登録（インライン） |
-
-## 動作
-
-- デフォルトで`runsync`（同期モード）を使用
-- `runsync`がタイムアウトした場合、自動的にポーリングにフォールバック
-- チャット履歴はクライアント側（メモリ上）で保持
-- 毎回全メッセージを`messages`配列で送信
-
-## 制限事項
-
-- ワーカーIDのルーティングは未実装（TODO）
-- SSH接続情報（ワーカーのIP）の取得は未実装（TODO）
+| /ssh | SSH接続情報を表示 |
