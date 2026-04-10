@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 OLLAMA_BASE = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434")
 OLLAMA_URL = f"http://{OLLAMA_BASE}"
-MODEL_NAME = os.environ.get("MODEL_NAME", "ki-krugle-jp/llm-jp-4-8b-thinking:q4_k_m")
+MODEL_NAME = os.environ.get("MODEL_NAME", "ki-krugle-jp/llm-jp-4-8b-thinking")
 
 
 def wait_for_ollama():

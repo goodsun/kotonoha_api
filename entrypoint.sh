@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MODEL_NAME="${MODEL_NAME:-ki-krugle-jp/llm-jp-4-8b-thinking:q4_k_m}"
+MODEL_NAME="${MODEL_NAME:-ki-krugle-jp/llm-jp-4-8b-thinking}"
 
 echo "=== KOTONOHA API starting ==="
 echo "Model: ${MODEL_NAME}"
