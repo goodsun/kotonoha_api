@@ -1,4 +1,4 @@
-FROM mmnga-o/llm-jp-4-8b-thinking-gguf:Q4_K_M
+FROM /models/llm-jp-4-8b-thinking-Q4_K_M.gguf
 
 PARAMETER temperature 0.7
 PARAMETER top_p 0.9

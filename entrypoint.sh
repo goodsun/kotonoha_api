@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MODEL_NAME="${MODEL_NAME:-ki-krugle-jp/llm-jp-4-8b-thinking}"
+MODEL_NAME="${MODEL_NAME:-kotonoha}"
 
 echo "=== KOTONOHA API starting ==="
 echo "Model: ${MODEL_NAME}"
@@ -26,13 +26,13 @@ until curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1; do
 done
 echo "Ollama is ready (waited ${WAITED}s)"
 
-# Pull model if not present
+# Verify model is registered
 echo "Checking model availability..."
 ollama list
-if ! ollama list 2>/dev/null | grep -q "llm-jp-4"; then
-    echo "Model not found, pulling ${MODEL_NAME}..."
-    ollama pull "${MODEL_NAME}" || {
-        echo "ERROR: Failed to pull model"
+if ! ollama list 2>/dev/null | grep -q "${MODEL_NAME}"; then
+    echo "Model not found, creating from Modelfile..."
+    ollama create "${MODEL_NAME}" -f /Modelfile || {
+        echo "ERROR: Failed to create model"
         exit 1
     }
 fi
