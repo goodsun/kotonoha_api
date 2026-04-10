@@ -6,6 +6,20 @@ echo "=== KOTONOHA API starting ==="
 echo "Model: ${MODEL_NAME}"
 echo "Date: $(date)"
 
+# --- SSH setup ---
+if [ -n "${PUBLIC_KEY:-}" ]; then
+    echo "Setting up SSH with provided public key..."
+    mkdir -p /root/.ssh
+    echo "$PUBLIC_KEY" > /root/.ssh/authorized_keys
+    chmod 700 /root/.ssh
+    chmod 600 /root/.ssh/authorized_keys
+    /usr/sbin/sshd
+    echo "SSH server started on port 22"
+else
+    echo "No PUBLIC_KEY provided, SSH disabled"
+fi
+
+# --- Ollama startup ---
 echo "Starting Ollama server..."
 ollama serve 2>&1 &
 OLLAMA_PID=$!
