@@ -18,7 +18,8 @@ RUN chmod +x /entrypoint.sh
 
 # Pre-pull model at build time to bake into image
 # LLM-jp-4 8B thinking (Q4_K_M, ~5.3GB)
-RUN ollama serve & sleep 5 && \
+RUN ollama serve & \
+    for i in $(seq 1 30); do curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1 && break; sleep 1; done && \
     ollama pull mmnga-o/llm-jp-4-8b-thinking-gguf:Q4_K_M && \
     kill %1 || true
 
